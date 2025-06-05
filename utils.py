@@ -1,4 +1,3 @@
-# utils.py
 import os
 import cv2
 
