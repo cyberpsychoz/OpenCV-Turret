@@ -3,10 +3,9 @@ import numpy as np
 
 class PersonDetector:
     def __init__(self):
-        # Загрузите предобученную модель YOLOv8
-        self.model = YOLO("yolov8s.pt")  # или yolov8n.pt для более быстрой работы
+        self.model = YOLO("yolov8s.pt")
         self.confidence_threshold = 0.5
-        self.person_class_id = 0  # В YOLO класс "person" имеет ID 0
+        self.person_class_id = 0
 
     def detect(self, frame):
         results = self.model(frame, verbose=False)

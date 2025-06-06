@@ -2,23 +2,36 @@ import cv2
 import numpy as np
 
 class ColorClassifier:
-    def classify(self, roi):
-        if roi.size == 0:
-            return "unknown"
-            
-        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
-        hsv = cv2.GaussianBlur(hsv, (5,5), 0)
+    def classify(self, full_body_roi, additional_rois=None):
+        if additional_rois is None:
+            additional_rois = []
+        
+        regions = [full_body_roi] + additional_rois
+        red_count = 0
+        blue_count = 0
+        
+        for roi in regions:
+            if roi.size == 0:
+                continue
+                
+            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+            hsv = cv2.GaussianBlur(hsv, (5,5), 0)
 
-        red_mask = self._create_red_mask(hsv)
-        blue_mask = self._create_blue_mask(hsv)
+            red_mask = self._create_red_mask(hsv)
+            blue_mask = self._create_blue_mask(hsv)
 
-        red_ratio = self._calculate_color_ratio(red_mask)
-        blue_ratio = self._calculate_color_ratio(blue_mask)
+            red_ratio = self._calculate_color_ratio(red_mask)
+            blue_ratio = self._calculate_color_ratio(blue_mask)
 
-        if red_ratio > blue_ratio and red_ratio > 0.1:
+            if red_ratio > blue_ratio and red_ratio > 0.1:
+                red_count += 1
+            elif blue_ratio > 0.1:
+                blue_count += 1
+                
+        if red_count > blue_count and red_count > 0:
             return "red"
-        elif blue_ratio > 0.1:
+        elif blue_count > 0:
             return "blue"
         return "unknown"
 
