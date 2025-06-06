@@ -46,7 +46,7 @@ pip install opencv-python-headless numpy mediapipe ultralytics filterp rich
 [##################################################--------------------------] 67.2% | Пройдено: 00:00:18 | Осталось: 00:00:09
 [INFO] Готово: processed_test1.avi | Затрачено: 00:00:27
 ```
-[gif](https://github.com/cyberpsychoz/OpenCV-Turret/template.gif](https://github.com/cyberpsychoz/OpenCV-Turret/blob/main/template.gif)
+[gif](https://github.com/cyberpsychoz/OpenCV-Turret/blob/main/template.gif)
 
 ## 🧰 Roadmap (План развития)
 - [~] Подключение различных модулей для улучшения обнаружения целей 
