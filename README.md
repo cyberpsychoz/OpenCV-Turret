@@ -1,4 +1,7 @@
 # 🎯 Турель на базе OpenCV
+[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/cyberpsychoz/OpenCV-Turret)
 
 > **Версия 0.3** — *Улучшенная версия с трекером и расширенным поиском повязок*
 
@@ -74,7 +77,3 @@ MIT License
 
 ### 📌 Примечание для Windows-пользователей с AMD GPU
 OpenCV не поддерживает CUDA на видеокартах AMD. Код автоматически переключается на CPU-режим. Для максимальной производительности используйте Windows с NVIDIA GPU или перейдите на Linux.
-
-[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
-[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/cyberpsychoz/OpenCV-Turret)
