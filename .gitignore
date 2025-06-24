@@ -1,3 +1,4 @@
 # okak
 *.avi
 *.mp4
+.env
