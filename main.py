@@ -14,12 +14,12 @@ log = logging.getLogger(__name__)
 
 
 class TurretSystem:
-    def __init__(self, use_pose=True, threaded=True):
+    def __init__(self, use_pose=True, use_weapon=True, threaded=True):
         log.info("Initializing...")
         self.threaded = threaded
 
         if threaded:
-            self.pipeline = ThreadedPipeline(use_pose=use_pose)
+            self.pipeline = ThreadedPipeline(use_pose=use_pose, use_weapon=use_weapon)
             self.pipeline.start()
         else:
             from detector import Detector
@@ -33,11 +33,19 @@ class TurretSystem:
             self.pose_analyzer = PoseAnalyzer() if use_pose else None
             self.motion_analyzer = MotionAnalyzer()
             self.threat_scorer = ThreatScorer()
+            self.weapon_detector = None
+            if use_weapon:
+                try:
+                    from weapon_detector import WeaponDetector
+                    self.weapon_detector = WeaponDetector()
+                except Exception:
+                    pass
             self.frame_count = 0
             self.fps_times = []
 
         self.use_pose = use_pose
-        log.info(f"Ready (threaded={threaded}, pose={use_pose})")
+        self.use_weapon = use_weapon
+        log.info(f"Ready (threaded={threaded}, pose={use_pose}, weapon={use_weapon})")
 
     def process(self, frame):
         if self.threaded:
@@ -59,10 +67,19 @@ class TurretSystem:
             if self.use_pose and self.pose_analyzer:
                 pose_result = self.pose_analyzer.analyze(frame, bbox)
 
+            weapon_result = []
+            if self.use_weapon and self.weapon_detector:
+                weapon_result = self.weapon_detector.detect(frame, bbox)
+                if weapon_result:
+                    t['weapons'] = weapon_result
+
             self.motion_analyzer.update(tid, bbox, frame.shape)
             motion_result = self.motion_analyzer.analyze(tid, frame.shape)
 
-            threat = self.threat_scorer.calculate(pose_result, motion_result, bbox, frame.shape)
+            threat = self.threat_scorer.calculate(
+                pose_result, motion_result, bbox, frame.shape,
+                weapon_result=weapon_result
+            )
             t['threat'] = threat
 
         self._last_targets = targets
@@ -103,7 +120,17 @@ class TurretSystem:
 
             cv2.rectangle(frame, (x, y), (x + w, y + h), color, thick)
 
+            weapons = t.get('weapons', [])
+            for wp in weapons:
+                wx, wy, ww, wh = wp['bbox']
+                cv2.rectangle(frame, (wx, wy), (wx + ww, wy + wh), (0, 0, 255), 2)
+                wlabel = f"{wp['class']} {wp['conf']:.2f}"
+                cv2.putText(frame, wlabel, (wx, wy - 5),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+
             label = f"{tid} {level} {threat['total']:.2f}"
+            if weapons:
+                label += " [ARMED]"
             cv2.rectangle(frame, (x, y - 20), (x + len(label) * 10, y), (0, 0, 0), -1)
             cv2.putText(frame, label, (x + 2, y - 5),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -210,12 +237,14 @@ def main():
     parser.add_argument('--output', type=str, help='Output video path')
     parser.add_argument('--camera', type=int, default=0)
     parser.add_argument('--no-pose', action='store_true', help='Disable pose analysis')
+    parser.add_argument('--no-weapon', action='store_true', help='Disable weapon detection')
     parser.add_argument('--no-thread', action='store_true', help='Disable threading')
 
     args = parser.parse_args()
 
     system = TurretSystem(
         use_pose=not args.no_pose,
+        use_weapon=not args.no_weapon,
         threaded=not args.no_thread
     )
 

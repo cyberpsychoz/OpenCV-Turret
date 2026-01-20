@@ -11,11 +11,15 @@ POSE_MIN_TRACKING_CONF = 0.5
 
 FRAME_SKIP = 2
 
+WEAPON_MODEL = "models/weights/best.pt"
+WEAPON_CONF = 0.4
+
 THREAT_WEIGHTS = {
-    'aggressive_pose': 0.35,
-    'moving_toward': 0.30,
-    'rapid_movement': 0.20,
-    'proximity': 0.15
+    'weapon_detected': 0.45,
+    'aggressive_pose': 0.25,
+    'moving_toward': 0.15,
+    'rapid_movement': 0.10,
+    'proximity': 0.05
 }
 
 THREAT_THRESHOLD_ENGAGE = 0.7

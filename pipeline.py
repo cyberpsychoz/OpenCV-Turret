@@ -10,6 +10,11 @@ from pose_analyzer import PoseAnalyzer
 from motion_analyzer import MotionAnalyzer
 from threat_scorer import ThreatScorer
 from tracker import Tracker
+try:
+    from weapon_detector import WeaponDetector
+    WEAPON_AVAILABLE = True
+except (ImportError, FileNotFoundError):
+    WEAPON_AVAILABLE = False
 
 
 @dataclass
@@ -32,8 +37,9 @@ class AnalysisResult:
 
 
 class ThreadedPipeline:
-    def __init__(self, use_pose=True, queue_size=4):
+    def __init__(self, use_pose=True, use_weapon=True, queue_size=4):
         self.use_pose = use_pose
+        self.use_weapon = use_weapon and WEAPON_AVAILABLE
         self.running = False
 
         self.frame_queue = queue.Queue(maxsize=queue_size)
@@ -45,6 +51,12 @@ class ThreadedPipeline:
         self.pose_analyzer = PoseAnalyzer() if use_pose else None
         self.motion_analyzer = MotionAnalyzer()
         self.threat_scorer = ThreatScorer()
+        self.weapon_detector = None
+        if self.use_weapon:
+            try:
+                self.weapon_detector = WeaponDetector()
+            except Exception:
+                self.use_weapon = False
 
         self.detector_thread = None
         self.analyzer_thread = None
@@ -156,12 +168,19 @@ class ThreadedPipeline:
                     if self.use_pose and self.pose_analyzer and frame is not None:
                         pose_result = self.pose_analyzer.analyze(frame, bbox)
 
+                    weapon_result = []
+                    if self.use_weapon and self.weapon_detector and frame is not None:
+                        weapon_result = self.weapon_detector.detect(frame, bbox)
+                        if weapon_result:
+                            t['weapons'] = weapon_result
+
                     self.motion_analyzer.update(tid, bbox, frame.shape if frame is not None else (480, 640, 3))
                     motion_result = self.motion_analyzer.analyze(tid, frame.shape if frame is not None else (480, 640, 3))
 
                     threat = self.threat_scorer.calculate(
                         pose_result, motion_result, bbox,
-                        frame.shape if frame is not None else (480, 640, 3)
+                        frame.shape if frame is not None else (480, 640, 3),
+                        weapon_result=weapon_result
                     )
                     t['threat'] = threat
 
