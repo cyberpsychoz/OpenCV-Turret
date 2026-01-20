@@ -73,8 +73,7 @@ MIT License
 This project was created for educational purposes only. Do not use it in combat systems.
 
 ## Contact
-- Telegram: @terminisle  
-- Discord: terminisle  
+- Telegram: @terminisles
 
 ### Note for Windows users with AMD GPUs
 OpenCV does not support CUDA on AMD GPUs. The code will automatically switch to CPU mode. For best performance, use a Windows system with an NVIDIA GPU or switch to Linux.

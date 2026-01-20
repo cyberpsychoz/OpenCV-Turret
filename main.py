@@ -1,272 +1,260 @@
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-import warnings
-warnings.filterwarnings('ignore', message='.*CUDA.*')
-warnings.filterwarnings('ignore', message='.*NVIDIA.*')
-
 import cv2
 import time
+import argparse
 import logging
-import sys
-from detector import PersonDetector
-from head_detector import BodyPartDetector
-from color_classifier import ImprovedColorClassifier
-from tracker import ImprovedTargetTracker
-from safety_system import SafetySystem, EngagementDecision, ThreatLevel
-from utils import get_video_files, create_output_dir, get_output_path
+
+import config
+from pipeline import ThreadedPipeline
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler('turret_system.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+    format='%(asctime)s [%(levelname)s] %(message)s'
 )
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class TurretSystem:
-    def __init__(self, use_pose=True):
-        logger.info("Initializing turret system...")
-        self.detector = PersonDetector()
-        self.classifier = ImprovedColorClassifier()
-        self.use_pose = use_pose
-        if use_pose:
-            self.body_detector = BodyPartDetector()
+    def __init__(self, use_pose=True, use_weapon=True, threaded=True):
+        log.info("Initializing...")
+        self.threaded = threaded
+
+        if threaded:
+            self.pipeline = ThreadedPipeline(use_pose=use_pose, use_weapon=use_weapon)
+            self.pipeline.start()
         else:
-            self.body_detector = None
-        self.tracker = ImprovedTargetTracker()
-        self.safety_system = SafetySystem()
+            from detector import Detector
+            from pose_analyzer import PoseAnalyzer
+            from motion_analyzer import MotionAnalyzer
+            from threat_scorer import ThreatScorer
+            from tracker import Tracker
 
-        self.stats = {
-            'frames': 0,
-            'persons': 0,
-            'red_bandanas': 0,
-            'engagements': 0,
-            'start_time': time.time()
-        }
+            self.detector = Detector()
+            self.tracker = Tracker()
+            self.pose_analyzer = PoseAnalyzer() if use_pose else None
+            self.motion_analyzer = MotionAnalyzer()
+            self.threat_scorer = ThreatScorer()
+            self.weapon_detector = None
+            if use_weapon:
+                try:
+                    from weapon_detector import WeaponDetector
+                    self.weapon_detector = WeaponDetector()
+                except Exception:
+                    pass
+            self.frame_count = 0
+            self.fps_times = []
 
-        self.frame_skip = 3
-        self.frame_count = 0
-        self.last_logged_states = {}
-        self.fps_times = []
+        self.use_pose = use_pose
+        self.use_weapon = use_weapon
+        log.info(f"Ready (threaded={threaded}, pose={use_pose}, weapon={use_weapon})")
 
-        logger.info("Turret system ready")
+    def process(self, frame):
+        if self.threaded:
+            return self.pipeline.process(frame)
 
-    def process_frame(self, frame, frame_num, total_frames):
         self.frame_count += 1
+        if self.frame_count % config.FRAME_SKIP != 0:
+            return getattr(self, '_last_targets', {})
 
-        if self.frame_count % self.frame_skip != 0:
-            return frame, []
-
-        self.stats['frames'] += 1
         t0 = time.time()
 
-        boxes = self.detector.detect(frame)
-        self.stats['persons'] += len(boxes)
+        detections = self.detector.detect(frame)
+        targets = self.tracker.update(detections)
 
-        targets = self.tracker.update(boxes)
-        decisions = []
+        for tid, t in targets.items():
+            bbox = t['bbox']
 
-        for tid, tdata in targets.items():
-            bbox = tdata['bbox']
-            x, y, w, h = bbox
+            pose_result = {'aggressive': 0.0}
+            if self.use_pose and self.pose_analyzer:
+                pose_result = self.pose_analyzer.analyze(frame, bbox)
 
-            if x < 0 or y < 0 or x + w >= frame.shape[1] or y + h >= frame.shape[0]:
-                continue
+            weapon_result = []
+            if self.use_weapon and self.weapon_detector:
+                weapon_result = self.weapon_detector.detect(frame, bbox)
+                if weapon_result:
+                    t['weapons'] = weapon_result
 
-            roi = frame[y:y+h, x:x+w]
-            if roi.size == 0:
-                continue
+            self.motion_analyzer.update(tid, bbox, frame.shape)
+            motion_result = self.motion_analyzer.analyze(tid, frame.shape)
 
-            add_rois = []
-            if self.use_pose and self.body_detector:
-                try:
-                    head, arms = self.body_detector.get_all_regions(frame, bbox, frame_num)
-                    if head is not None and head.size > 0:
-                        add_rois.append(head)
-                    add_rois.extend(arms)
-                except:
-                    pass
+            threat = self.threat_scorer.calculate(
+                pose_result, motion_result, bbox, frame.shape,
+                weapon_result=weapon_result
+            )
+            t['threat'] = threat
 
-            try:
-                color, conf = self.classifier.classify_with_confidence(roi, add_rois, tid)
-                tdata['color'] = color
-                tdata['color_confidence'] = conf
-
-                if color == "red" and conf > 0.6:
-                    self.stats['red_bandanas'] += 1
-            except:
-                color, conf = "unknown", 0.0
-                tdata['color'] = color
-                tdata['color_confidence'] = conf
-
-            try:
-                report = self.safety_system.evaluate_target_safety(tid, tdata, (color, conf))
-                decision = report['decision']
-
-                if decision == EngagementDecision.ENGAGE:
-                    self.stats['engagements'] += 1
-                    decisions.append({'id': tid, 'action': 'ENGAGE', 'bbox': bbox})
-                    prev = self.last_logged_states.get(f'd_{tid}')
-                    if prev != 'ENGAGE':
-                        logger.warning(f"TARGET {tid} ENGAGEMENT AUTHORIZED")
-                        self.last_logged_states[f'd_{tid}'] = 'ENGAGE'
-
-                elif decision == EngagementDecision.ABORT and 'RED_BANDANA_DETECTED' in report['reasons']:
-                    prev = self.last_logged_states.get(f'd_{tid}')
-                    if prev != 'ABORT':
-                        logger.info(f"Target {tid}: ABORT - Friendly (red bandana)")
-                        self.last_logged_states[f'd_{tid}'] = 'ABORT'
-
-                elif decision == EngagementDecision.PREPARE:
-                    decisions.append({'id': tid, 'action': 'PREPARE', 'bbox': bbox})
-            except:
-                pass
-
-        if self.frame_count % 100 == 0:
-            active = set(targets.keys())
-            self.classifier.cleanup_dead_targets(active)
-            self.safety_system.cleanup_dead_targets(active)
-
-        self._annotate(frame, targets, decisions)
+        self._last_targets = targets
 
         dt = time.time() - t0
         self.fps_times.append(dt)
         if len(self.fps_times) > 30:
             self.fps_times.pop(0)
 
-        return frame, decisions
+        return targets
 
-    def _annotate(self, frame, targets, decisions):
-        dec_map = {d['id']: d['action'] for d in decisions}
-
-        for tid, t in targets.items():
-            x, y, w, h = t['bbox']
-            color = t.get('color', '?')
-            conf = t.get('color_confidence', 0)
-
-            if tid in dec_map:
-                if dec_map[tid] == 'ENGAGE':
-                    c = (0, 0, 255)
-                else:
-                    c = (0, 165, 255)
-            elif color == 'red' and conf > 0.6:
-                c = (255, 0, 0)
-            else:
-                c = (128, 128, 128)
-
-            cv2.rectangle(frame, (x, y), (x+w, y+h), c, 2)
-            cv2.putText(frame, f"{tid}:{color[0]}({conf:.1f})", (x, y-5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-
-        fps = self._get_fps()
-        cv2.putText(frame, f"FPS:{fps:.0f} T:{len(targets)}", (10, 20),
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-
-    def _get_fps(self):
+    def get_fps(self):
+        if self.threaded:
+            return self.pipeline.get_fps()
         if len(self.fps_times) < 2:
             return 0
         return 1.0 / (sum(self.fps_times) / len(self.fps_times))
 
-    def process_video(self, path):
-        logger.info(f"Processing: {path}")
-        cap = cv2.VideoCapture(path)
+    def stop(self):
+        if self.threaded:
+            self.pipeline.stop()
 
-        if not cap.isOpened():
-            logger.error(f"Cannot open: {path}")
-            return False
+    def draw(self, frame, targets):
+        for tid, t in targets.items():
+            x, y, w, h = t['bbox']
+            threat = t.get('threat', {'total': 0, 'level': 'LOW', 'components': {}})
+            level = threat['level']
 
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if level == 'HIGH':
+                color = (0, 0, 255)
+                thick = 3
+            elif level == 'MEDIUM':
+                color = (0, 165, 255)
+                thick = 2
+            else:
+                color = (0, 255, 0)
+                thick = 1
 
-        logger.info(f"Video: {w}x{h} @ {fps:.1f}fps, {total} frames")
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color, thick)
 
-        out_path = get_output_path(path)
+            weapons = t.get('weapons', [])
+            for wp in weapons:
+                wx, wy, ww, wh = wp['bbox']
+                cv2.rectangle(frame, (wx, wy), (wx + ww, wy + wh), (0, 0, 255), 2)
+                wlabel = f"{wp['class']} {wp['conf']:.2f}"
+                cv2.putText(frame, wlabel, (wx, wy - 5),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+
+            label = f"{tid} {level} {threat['total']:.2f}"
+            if weapons:
+                label += " [ARMED]"
+            cv2.rectangle(frame, (x, y - 20), (x + len(label) * 10, y), (0, 0, 0), -1)
+            cv2.putText(frame, label, (x + 2, y - 5),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        fps = self.get_fps()
+        cv2.putText(frame, f"FPS: {fps:.1f} | Targets: {len(targets)}",
+                   (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        return frame
+
+
+def run_webcam(system, camera_id=0):
+    log.info(f"Starting webcam {camera_id}")
+    cap = cv2.VideoCapture(camera_id)
+
+    if not cap.isOpened():
+        log.error("Cannot open webcam")
+        return
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+    log.info("Press 'q' to quit")
+
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            targets = system.process(frame)
+            frame = system.draw(frame, targets)
+
+            cv2.imshow("Turret System", frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        system.stop()
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+def run_video(system, video_path, output_path=None):
+    log.info(f"Processing: {video_path}")
+    cap = cv2.VideoCapture(video_path)
+
+    if not cap.isOpened():
+        log.error(f"Cannot open: {video_path}")
+        return
+
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    log.info(f"Video: {w}x{h} @ {fps:.1f}fps, {total} frames")
+
+    out = None
+    if output_path:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
+        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
 
-        frame_num = 0
-        last_log = 0
+    frame_num = 0
+    last_log = time.time()
 
-        try:
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-                frame_num += 1
-                processed, _ = self.process_frame(frame, frame_num, total)
-                out.write(processed)
+            frame_num += 1
+            targets = system.process(frame)
+            frame = system.draw(frame, targets)
 
-                if time.time() - last_log > 5:
-                    pct = frame_num / total * 100
-                    fps = self._get_fps()
-                    logger.info(f"Progress: {pct:.1f}% ({frame_num}/{total}) FPS:{fps:.1f}")
-                    last_log = time.time()
+            if out:
+                out.write(frame)
 
-                if cv2.waitKey(1) & 0xFF == 27:
-                    logger.info("Interrupted by user")
-                    break
+            cv2.imshow("Turret System", frame)
 
-        except KeyboardInterrupt:
-            logger.info("Interrupted")
-        finally:
-            cap.release()
+            if time.time() - last_log > 3:
+                pct = frame_num / total * 100
+                log.info(f"Progress: {pct:.1f}% FPS: {system.get_fps():.1f}")
+                last_log = time.time()
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        system.stop()
+        cap.release()
+        if out:
             out.release()
+        cv2.destroyAllWindows()
 
-        logger.info(f"Output: {out_path}")
-        return True
-
-    def report(self):
-        elapsed = time.time() - self.stats['start_time']
-        avg_fps = self.stats['frames'] / elapsed if elapsed > 0 else 0
-
-        txt = f"""
-=== TURRET SYSTEM REPORT ===
-Runtime: {elapsed:.1f}s
-Frames processed: {self.stats['frames']}
-Average FPS: {avg_fps:.1f}
-Persons detected: {self.stats['persons']}
-Red bandanas: {self.stats['red_bandanas']}
-Engagements: {self.stats['engagements']}
-Tracking: {self.tracker.get_tracking_statistics()}
-"""
-        logger.info(txt)
-
-        with open('turret_system_report.txt', 'w') as f:
-            f.write(txt)
-
-        return txt
+    log.info("Done")
 
 
 def main():
-    logger.info("=== TURRET SYSTEM v2.0 (Lightweight) ===")
-    create_output_dir()
+    parser = argparse.ArgumentParser(description="Turret Threat Detection System")
+    parser.add_argument('--mode', choices=['webcam', 'video'], default='webcam')
+    parser.add_argument('--video', type=str, help='Video file path')
+    parser.add_argument('--output', type=str, help='Output video path')
+    parser.add_argument('--camera', type=int, default=0)
+    parser.add_argument('--no-pose', action='store_true', help='Disable pose analysis')
+    parser.add_argument('--no-weapon', action='store_true', help='Disable weapon detection')
+    parser.add_argument('--no-thread', action='store_true', help='Disable threading')
 
-    try:
-        system = TurretSystem()
-    except Exception as e:
-        logger.error(f"Init failed: {e}")
-        return
+    args = parser.parse_args()
 
-    videos = get_video_files()
-    if not videos:
-        logger.warning("No videos in test_videos/")
-        return
+    system = TurretSystem(
+        use_pose=not args.no_pose,
+        use_weapon=not args.no_weapon,
+        threaded=not args.no_thread
+    )
 
-    logger.info(f"Found {len(videos)} video(s)")
-
-    for v in videos:
-        path = os.path.join("test_videos", v)
-        system.process_video(path)
-
-    system.report()
-    logger.info("Done")
+    if args.mode == 'webcam':
+        run_webcam(system, args.camera)
+    else:
+        if not args.video:
+            log.error("--video required for video mode")
+            return
+        run_video(system, args.video, args.output)
 
 
 if __name__ == "__main__":
