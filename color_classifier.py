@@ -1,8 +1,6 @@
 import cv2
 import numpy as np
 from collections import defaultdict
-from sklearn.cluster import KMeans
-import colorsys
 
 class ImprovedColorClassifier:
     def __init__(self):
@@ -76,35 +74,37 @@ class ImprovedColorClassifier:
         return hsv
     
     def _extract_dominant_colors(self, hsv_roi, n_colors=5):
-        """Извлечение доминантных цветов через кластеризацию"""
-        # Изменение формы для кластеризации
-        pixels = hsv_roi.reshape((-1, 3))
-        
-        # Фильтрация слишком темных/светлых пикселей
-        mask = (pixels[:, 2] > 30) & (pixels[:, 2] < 240)  # V канал
+        pixels = hsv_roi.reshape((-1, 3)).astype(np.float32)
+
+        mask = (pixels[:, 2] > 30) & (pixels[:, 2] < 240)
         filtered_pixels = pixels[mask]
-        
+
         if len(filtered_pixels) < 10:
             return []
-        
-        # Кластеризация
-        kmeans = KMeans(n_clusters=min(n_colors, len(filtered_pixels)), 
-                       random_state=42, n_init=10)
-        kmeans.fit(filtered_pixels)
-        
-        # Получение центров кластеров и их весов
-        colors = kmeans.cluster_centers_
-        labels = kmeans.labels_
-        
-        # Вычисление весов каждого цвета
+
+        h_bins = 18
+        s_bins = 8
+
+        h_indices = (filtered_pixels[:, 0] / 180 * h_bins).astype(np.int32).clip(0, h_bins - 1)
+        s_indices = (filtered_pixels[:, 1] / 256 * s_bins).astype(np.int32).clip(0, s_bins - 1)
+
+        bin_indices = h_indices * s_bins + s_indices
+
+        unique_bins, inverse, counts = np.unique(bin_indices, return_inverse=True, return_counts=True)
+
+        top_k = min(n_colors, len(unique_bins))
+        top_indices = np.argsort(counts)[-top_k:][::-1]
+
         color_weights = []
-        for i in range(len(colors)):
-            weight = np.sum(labels == i) / len(labels)
-            color_weights.append((colors[i], weight))
-        
-        # Сортировка по весу
-        color_weights.sort(key=lambda x: x[1], reverse=True)
-        
+        total = len(filtered_pixels)
+
+        for idx in top_indices:
+            bin_mask = inverse == idx
+            bin_pixels = filtered_pixels[bin_mask]
+            avg_color = np.mean(bin_pixels, axis=0)
+            weight = counts[idx] / total
+            color_weights.append((avg_color, weight))
+
         return color_weights
     
     def _classify_dominant_colors(self, dominant_colors):
@@ -247,15 +247,15 @@ class ImprovedColorClassifier:
             return "blue", blue_score
     
     def adapt_thresholds(self, feedback_data):
-        """Адаптация порогов на основе обратной связи"""
-        # Анализ ошибок и корректировка порогов
         for ground_truth, prediction, confidence in feedback_data:
             if ground_truth == "red" and prediction != "red" and confidence > 0.3:
-                # Уменьшаем порог для красного
                 self.confidence_threshold *= 0.95
             elif ground_truth != "red" and prediction == "red" and confidence > 0.7:
-                # Увеличиваем порог для красного
                 self.confidence_threshold *= 1.05
-        
-        # Ограничиваем диапазон порогов
+
         self.confidence_threshold = np.clip(self.confidence_threshold, 0.3, 0.8)
+
+    def cleanup_dead_targets(self, active_target_ids):
+        dead_ids = [tid for tid in self.color_history.keys() if tid not in active_target_ids]
+        for tid in dead_ids:
+            del self.color_history[tid]

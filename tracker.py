@@ -160,12 +160,13 @@ class ImprovedTargetTracker:
                 kf = self.targets[target_id]['kalman_filter']
                 kf.update(np.array(detection).reshape((4, 1)))
                 
-                # Обновление информации о цели
                 self.targets[target_id]['bbox'] = detection
                 self.targets[target_id]['last_seen'] = current_time
                 self.targets[target_id]['prediction_error'] = self._calculate_prediction_error(
                     predictions[target_id], detection
                 )
+                self.targets[target_id]['update_count'] = self.targets[target_id].get('update_count', 0) + 1
+                self.get_target_stability(target_id)
                 
                 # Сброс счетчика исчезновения
                 if target_id in self.disappeared:

@@ -1,14 +1,21 @@
+import warnings
+warnings.filterwarnings('ignore', message='.*CUDA.*')
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
 from ultralytics import YOLO
 import numpy as np
+import torch
 
 class PersonDetector:
     def __init__(self):
-        self.model = YOLO("yolov8s.pt")
+        self.model = YOLO("yolov8n.pt")
+        self.model.to('cpu')
         self.confidence_threshold = 0.5
         self.person_class_id = 0
 
     def detect(self, frame):
-        results = self.model(frame, verbose=False)
+        results = self.model(frame, imgsz=480, device='cpu', verbose=False)
         boxes = []
 
         for result in results:

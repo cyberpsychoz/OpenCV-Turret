@@ -331,7 +331,6 @@ class SafetySystem:
             return EngagementDecision.HOLD_FIRE, max_risk_level
     
     def _log_decision(self, safety_report):
-        """Логирование принятого решения"""
         self.engagement_log.append({
             'timestamp': safety_report['timestamp'],
             'target_id': safety_report['target_id'],
@@ -339,15 +338,13 @@ class SafetySystem:
             'safety_level': safety_report['overall_safety'],
             'reasons': safety_report['reasons']
         })
-        
-        # Логирование в файл
-        self.logger.info(f"Target {safety_report['target_id']}: "
-                        f"{safety_report['decision'].name} - "
-                        f"Safety: {safety_report['overall_safety'].name} - "
-                        f"Reasons: {', '.join(safety_report['reasons'])}")
+
+        if safety_report['decision'] in (EngagementDecision.ENGAGE, EngagementDecision.ABORT):
+            self.logger.info(f"Target {safety_report['target_id']}: "
+                            f"{safety_report['decision'].name} - "
+                            f"Reasons: {', '.join(safety_report['reasons'])}")
     
     def get_safety_statistics(self):
-        """Получение статистики безопасности"""
         if not self.engagement_log:
             return {
                 'total_decisions': 0,
@@ -355,20 +352,25 @@ class SafetySystem:
                 'safety_violations': 0,
                 'average_risk_level': 0
             }
-        
+
         total_decisions = len(self.engagement_log)
-        engagements = sum(1 for log in self.engagement_log 
+        engagements = sum(1 for log in self.engagement_log
                          if log['decision'] == EngagementDecision.ENGAGE)
-        
-        safety_violations = sum(1 for log in self.engagement_log 
+
+        safety_violations = sum(1 for log in self.engagement_log
                                if log['safety_level'].value >= ThreatLevel.WARNING.value)
-        
+
         return {
             'total_decisions': total_decisions,
             'engagements': engagements,
             'engagement_rate': engagements / total_decisions if total_decisions > 0 else 0,
             'safety_violations': safety_violations,
             'violation_rate': safety_violations / total_decisions if total_decisions > 0 else 0,
-            'recent_engagements': len([log for log in self.engagement_log 
-                                     if time.time() - log['timestamp'] <= 300])  # За последние 5 минут
+            'recent_engagements': len([log for log in self.engagement_log
+                                     if time.time() - log['timestamp'] <= 300])
         }
+
+    def cleanup_dead_targets(self, active_target_ids):
+        dead_ids = [tid for tid in self.target_decision_history.keys() if tid not in active_target_ids]
+        for tid in dead_ids:
+            del self.target_decision_history[tid]
