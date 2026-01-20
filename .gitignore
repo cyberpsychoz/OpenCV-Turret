@@ -20,4 +20,4 @@ test_videos/
 
 # Logs
 *.log
-turret_system_report.txt
+*.txt
