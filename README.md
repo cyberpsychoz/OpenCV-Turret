@@ -1,25 +1,26 @@
-# 🎯 OpenCV-Based Turret  
-[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)  
-[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)  
-[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/cyberpsychoz/OpenCV-Turret)  
+# OpenCV-Based Turret
+[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/cyberpsychoz/OpenCV-Turret)
 
-> **Version 0.3** — *Improved version with tracker and enhanced bandana detection*
+
+> **Version 0.4** — *Added safety control and best target-tracking.*
 
 This is an experimental project for a test turret that detects people wearing bandanas in video streams and can be used as a basis for target identification systems. The code is written in Python using OpenCV.
 
-## 🧪 Features
-- **YOLOv8 via Ultralytics**: Accurate person detection  
-- **MediaPipe**: Body keypoint detection for precise head and hand localization  
-- **Color classification**: Detection of bandanas across the entire body  
-- **Kalman Filter**: Target motion prediction  
-- **GPU acceleration**: CUDA support (NVIDIA only)  
-- **Progress bar**: Shows processing percentage  
+## Features
+- **YOLOv8 via Ultralytics**: Accurate person detection
+- **MediaPipe**: Body keypoint detection for precise head and hand localization
+- **Color classification**: Detection of bandanas across the entire body
+- **Kalman Filter**: Target motion prediction
+- **GPU acceleration**: CUDA support (NVIDIA only)
+- **Progress bar**: Shows processing percentage
 
-## ⚠️ Warning
-- **Rough implementation** 🧪  
+## Warning
+- **Rough implementation**
   Many features need refinement and optimization
 
-## 📦 Installation
+## Installation
 
 ```bash
 # Install dependencies
@@ -29,16 +30,16 @@ pip install opencv-python numpy mediapipe ultralytics filterpy rich
 pip install opencv-python-headless numpy mediapipe ultralytics filterpy rich
 ```
 
-## 🚀 Usage
+## Usage
 
-1. Place test videos into the `test_videos` folder  
+1. Place test videos into the `test_videos` folder
 2. Run:
    ```bash
    python main.py
    ```
 3. Processed videos will be saved to the `output` folder
 
-## 📷 Example Output
+## Example Output
 ```
 [INFO] Found 2 videos for processing:
 1. test1.mp4
@@ -50,30 +51,30 @@ Format: 1280x720, 30 FPS, 900 frames
 [INFO] Done: processed_test1.avi | Time taken: 00:00:27
 ```
 
-## 🧰 Roadmap
-- [~] Integrate various modules to improve target detection  
-- [ ] Connect to a real turret via Arduino/Raspberry Pi  
-- [~] Improve color classification algorithm  
-- [ ] Add multi-target tracking  
-- [ ] Create a graphical user interface (GUI)  
-- [ ] Support RTSP camera streams  
-- [ ] Test on mobile devices  
+## Roadmap
+- [~] Integrate various modules to improve target detection
+- [ ] Connect to a real turret via Arduino/Raspberry Pi
+- [~] Improve color classification algorithm
+- [ ] Add multi-target tracking
+- [ ] Create a graphical user interface (GUI)
+- [ ] Support RTSP camera streams
+- [ ] Test on mobile devices
 
-## 🤝 Contributing
+## Contributing
 All improvements are welcome! To contribute:
-1. Fork the project  
-2. Create a new branch (`git checkout -b feature/god-help`)  
-3. Commit your changes (`git commit -m 'Add some feature'`)  
-4. Push to the branch (`git push origin feature/amazing-feature`)  
-5. Open a Pull Request  
+1. Fork the project
+2. Create a new branch (`git checkout -b feature/god-help`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
-MIT License  
+## License
+MIT License
 This project was created for educational purposes only. Do not use it in combat systems.
 
-## 📬 Contact
-- Telegram: @terminisle  
-- Discord: terminisle  
+## Contact
+- Telegram: @terminisle
+- Discord: terminisle
 
-### 📌 Note for Windows users with AMD GPUs
+### Note for Windows users with AMD GPUs
 OpenCV does not support CUDA on AMD GPUs. The code will automatically switch to CPU mode. For best performance, use a Windows system with an NVIDIA GPU or switch to Linux.

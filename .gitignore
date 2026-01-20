@@ -1,4 +1,23 @@
-# okak
+# Video files
 *.avi
 *.mp4
+
+# IDE
+*.code-workspace
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment
 .env
+
+# Project folders
+output/
+test_videos/
+
+# Logs
+*.log
+turret_system_report.txt
