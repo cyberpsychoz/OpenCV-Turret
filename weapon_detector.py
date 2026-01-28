@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import os
 
 class WeaponDetector:
-    def __init__(self, model_path="models/weights/best.pt", conf=0.4):
+    def __init__(self, model_path="models/weapons_v2/weights/best.pt", conf=0.1):
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Weapon model not found: {model_path}")
 

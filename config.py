@@ -21,10 +21,9 @@ POSE_MIN_TRACKING_CONF = 0.5
 
 FRAME_SKIP = 2
 
-# New firearm model with 89% mAP
-WEAPON_MODEL = "models/weapons_v2/weights/best.onnx"
-WEAPON_MODEL_PT = "models/weapons_v2/weights/best.pt"
-WEAPON_CONF = 0.2  # Better model = can use higher threshold
+# New firearm model with 89% mAP (use PT, ONNX export broken)
+WEAPON_MODEL = "models/weapons_v2/weights/best.pt"
+WEAPON_CONF = 0.1  # Low threshold to catch weapons
 
 DEPTH_MODEL = "MiDaS_small"
 DEPTH_ENABLED = True

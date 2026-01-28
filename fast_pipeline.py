@@ -36,10 +36,10 @@ def _detector_process(input_queue, output_queue, model_path, conf, input_size, u
 
 
 def _weapon_process(input_queue, output_queue, model_path, conf):
-    """Weapon detector process."""
-    from fast_detector import FastWeaponDetector
+    """Weapon detector process using PT model (more accurate than ONNX)."""
+    from weapon_detector import WeaponDetector
 
-    detector = FastWeaponDetector(model_path, conf)
+    detector = WeaponDetector(model_path, conf)
 
     while True:
         try:
