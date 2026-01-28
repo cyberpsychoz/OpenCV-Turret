@@ -192,8 +192,34 @@ class FastWeaponDetector(FastDetector):
 
 
 class FastPersonDetector(FastDetector):
-    """Person-only detector for maximum speed."""
+    """Person-only detector with filtering."""
 
-    def __init__(self, model_path="yolov8n.onnx", conf=0.4, input_size=320):
+    def __init__(self, model_path="yolov8s.onnx", conf=0.4, input_size=416, use_filter=True):
         # Only detect class 0 (person)
         super().__init__(model_path, conf, input_size, classes=[0])
+
+        self.use_filter = use_filter
+        self.detection_filter = None
+
+        if use_filter:
+            try:
+                from detection_filter import DetectionFilter
+                import config
+                self.detection_filter = DetectionFilter(
+                    min_aspect_ratio=config.FILTER_MIN_ASPECT,
+                    max_aspect_ratio=config.FILTER_MAX_ASPECT,
+                    min_area_ratio=config.FILTER_MIN_AREA,
+                    max_area_ratio=config.FILTER_MAX_AREA,
+                    temporal_frames=config.FILTER_TEMPORAL_FRAMES
+                )
+            except ImportError:
+                pass
+
+    def detect(self, frame):
+        """Detect with optional filtering."""
+        detections = super().detect(frame)
+
+        if self.use_filter and self.detection_filter:
+            detections = self.detection_filter.filter(detections, frame.shape)
+
+        return detections

@@ -1,10 +1,19 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
-YOLO_MODEL = "yolov8n.onnx"
-YOLO_MODEL_PT = "yolov8n.pt"
-YOLO_IMGSZ = 320
-YOLO_CONF = 0.35
+# Use yolov8s for better accuracy (slower) or yolov8n for speed
+YOLO_MODEL = "yolov8s.onnx"
+YOLO_MODEL_FAST = "yolov8n.onnx"
+YOLO_IMGSZ = 416  # 416 for yolov8s, 320 for yolov8n
+YOLO_IMGSZ_FAST = 320
+YOLO_CONF = 0.4
+
+# Detection filtering
+FILTER_MIN_ASPECT = 0.2   # min width/height
+FILTER_MAX_ASPECT = 0.95  # max width/height
+FILTER_MIN_AREA = 0.002   # min bbox area / frame area
+FILTER_MAX_AREA = 0.7     # max bbox area / frame area
+FILTER_TEMPORAL_FRAMES = 2  # require N frames before confirming
 
 POSE_MODEL_COMPLEXITY = 0
 POSE_MIN_DETECTION_CONF = 0.5

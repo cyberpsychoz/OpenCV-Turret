@@ -12,11 +12,11 @@ import queue
 import config
 
 
-def _detector_process(input_queue, output_queue, model_path, conf, input_size):
+def _detector_process(input_queue, output_queue, model_path, conf, input_size, use_filter=True):
     """Detector process - runs YOLO inference."""
     from fast_detector import FastPersonDetector
 
-    detector = FastPersonDetector(model_path, conf, input_size)
+    detector = FastPersonDetector(model_path, conf, input_size, use_filter=use_filter)
 
     while True:
         try:
@@ -80,9 +80,10 @@ class FastPipeline:
             args=(
                 self.frame_queue,
                 self.detection_queue,
-                "yolov8n.onnx",
+                config.YOLO_MODEL,
                 config.YOLO_CONF,
-                config.YOLO_IMGSZ
+                config.YOLO_IMGSZ,
+                True  # use_filter
             ),
             daemon=True
         )
@@ -190,8 +191,8 @@ class FastPipeline:
             while True:
                 frame_id, detections, det_frame = self.detection_queue.get_nowait()
 
-                # Update tracker
-                targets = self.tracker.update(detections)
+                # Update tracker with frame for appearance matching
+                targets = self.tracker.update(detections, det_frame)
 
                 # Depth estimation (in main thread, heavy)
                 depth_map = None
