@@ -135,15 +135,12 @@ class FastDetector:
 class FastWeaponDetector(FastDetector):
     """Weapon detector using ONNX model."""
 
-    def __init__(self, model_path="models/weights/best.onnx", conf=0.3, input_size=320):
+    def __init__(self, model_path="models/weapons_v2/weights/best.onnx", conf=0.2, input_size=416):
         super().__init__(model_path, conf, input_size, classes=None)
 
-        # Weapon class names from the model
+        # New model with single Gun class (89% mAP)
         self.class_names = {
-            0: 'Gun',
-            1: 'explosion',
-            2: 'grenade',
-            3: 'knife'
+            0: 'Gun'
         }
 
     def detect(self, frame, person_bbox=None):

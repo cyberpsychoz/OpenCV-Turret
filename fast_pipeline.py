@@ -96,7 +96,7 @@ class FastPipeline:
                 args=(
                     self.weapon_queue,
                     self.weapon_result_queue,
-                    "models/weights/best.onnx",
+                    config.WEAPON_MODEL,
                     config.WEAPON_CONF
                 ),
                 daemon=True
