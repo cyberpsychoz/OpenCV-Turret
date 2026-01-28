@@ -24,17 +24,22 @@ class ThreatScorer:
 
         total = sum(scores[k] * self.weights.get(k, 0) for k in scores)
 
-        if weapon_score > 0.5:
-            total = min(1.0, total * 1.5)
-
-        if scores['aggressive_pose'] > 0.6 and scores['moving_toward'] > 0.4:
-            total = min(1.0, total * 1.2)
-
-        level = 'LOW'
-        if total >= config.THREAT_THRESHOLD_ENGAGE:
+        # WEAPON = IMMEDIATE HIGH THREAT
+        if weapon_score > 0.2:
+            total = max(total, 0.85)  # Minimum 0.85 with any weapon
             level = 'HIGH'
-        elif total >= config.THREAT_THRESHOLD_WARN:
-            level = 'MEDIUM'
+        else:
+            if weapon_score > 0.5:
+                total = min(1.0, total * 1.5)
+
+            if scores['aggressive_pose'] > 0.6 and scores['moving_toward'] > 0.4:
+                total = min(1.0, total * 1.2)
+
+            level = 'LOW'
+            if total >= config.THREAT_THRESHOLD_ENGAGE:
+                level = 'HIGH'
+            elif total >= config.THREAT_THRESHOLD_WARN:
+                level = 'MEDIUM'
 
         return {
             'total': total,

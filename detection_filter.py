@@ -19,13 +19,13 @@ class DetectionFilter:
     """
 
     def __init__(self,
-                 min_aspect_ratio=0.2,
-                 max_aspect_ratio=0.95,
-                 min_area_ratio=0.001,
-                 max_area_ratio=0.8,
-                 temporal_frames=2,
-                 stationary_threshold=30,
-                 iou_threshold=0.3):
+                 min_aspect_ratio=0.15,
+                 max_aspect_ratio=1.2,
+                 min_area_ratio=0.0005,
+                 max_area_ratio=0.9,
+                 temporal_frames=1,
+                 stationary_threshold=60,
+                 iou_threshold=0.2):
         """
         Args:
             min_aspect_ratio: Minimum width/height ratio
