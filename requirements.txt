@@ -1,0 +1,9 @@
+ultralytics
+opencv-python
+numpy
+mediapipe==0.10.14
+scipy
+filterpy
+torch
+torchvision
+timm

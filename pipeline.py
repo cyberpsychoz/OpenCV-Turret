@@ -16,6 +16,12 @@ try:
 except (ImportError, FileNotFoundError):
     WEAPON_AVAILABLE = False
 
+try:
+    from depth_estimator import DepthEstimator
+    DEPTH_AVAILABLE = True
+except ImportError:
+    DEPTH_AVAILABLE = False
+
 
 @dataclass
 class FrameData:
@@ -37,9 +43,10 @@ class AnalysisResult:
 
 
 class ThreadedPipeline:
-    def __init__(self, use_pose=True, use_weapon=True, queue_size=4):
+    def __init__(self, use_pose=True, use_weapon=True, use_depth=True, queue_size=4):
         self.use_pose = use_pose
         self.use_weapon = use_weapon and WEAPON_AVAILABLE
+        self.use_depth = use_depth and DEPTH_AVAILABLE
         self.running = False
 
         self.frame_queue = queue.Queue(maxsize=queue_size)
@@ -52,11 +59,19 @@ class ThreadedPipeline:
         self.motion_analyzer = MotionAnalyzer()
         self.threat_scorer = ThreatScorer()
         self.weapon_detector = None
+        self.depth_estimator = None
+
         if self.use_weapon:
             try:
                 self.weapon_detector = WeaponDetector()
             except Exception:
                 self.use_weapon = False
+
+        if self.use_depth:
+            try:
+                self.depth_estimator = DepthEstimator(config.DEPTH_MODEL)
+            except Exception:
+                self.use_depth = False
 
         self.detector_thread = None
         self.analyzer_thread = None
@@ -160,6 +175,15 @@ class ThreadedPipeline:
             targets = self.tracker.update(det_result.detections)
 
             frame = frame_cache.get(det_result.frame_id)
+            depth_map = None
+            depth_colored = None
+
+            if frame is not None and self.use_depth and self.depth_estimator:
+                try:
+                    depth_map, depth_colored = self.depth_estimator.estimate(frame)
+                except Exception:
+                    pass
+
             if frame is not None:
                 for tid, t in targets.items():
                     bbox = t['bbox']
@@ -174,13 +198,19 @@ class ThreadedPipeline:
                         if weapon_result:
                             t['weapons'] = weapon_result
 
+                    depth_value = None
+                    if depth_map is not None:
+                        depth_value = self.depth_estimator.get_relative_depth(depth_map, bbox, frame.shape)
+                        t['depth'] = depth_value
+
                     self.motion_analyzer.update(tid, bbox, frame.shape if frame is not None else (480, 640, 3))
                     motion_result = self.motion_analyzer.analyze(tid, frame.shape if frame is not None else (480, 640, 3))
 
                     threat = self.threat_scorer.calculate(
                         pose_result, motion_result, bbox,
                         frame.shape if frame is not None else (480, 640, 3),
-                        weapon_result=weapon_result
+                        weapon_result=weapon_result,
+                        depth_value=depth_value
                     )
                     t['threat'] = threat
 

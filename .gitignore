@@ -13,6 +13,8 @@ __pycache__/
 
 # Environment
 .env
+.venv/
+venv/
 
 # Project folders
 output/
@@ -20,4 +22,7 @@ test_videos/
 
 # Logs
 *.log
-*.txt
+
+# Models (large files)
+yolov8n.pt
+*.onnx

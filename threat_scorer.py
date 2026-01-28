@@ -4,17 +4,22 @@ class ThreatScorer:
     def __init__(self):
         self.weights = config.THREAT_WEIGHTS
 
-    def calculate(self, pose_result, motion_result, bbox, frame_shape, weapon_result=None):
+    def calculate(self, pose_result, motion_result, bbox, frame_shape, weapon_result=None, depth_value=None):
         weapon_score = 0.0
         if weapon_result and len(weapon_result) > 0:
             weapon_score = max(w['conf'] for w in weapon_result)
+
+        if depth_value is not None:
+            proximity = depth_value
+        else:
+            proximity = self._calc_proximity(bbox, frame_shape)
 
         scores = {
             'weapon_detected': weapon_score,
             'aggressive_pose': pose_result.get('aggressive', 0.0),
             'moving_toward': motion_result.get('toward', 0.0),
             'rapid_movement': motion_result.get('speed', 0.0),
-            'proximity': self._calc_proximity(bbox, frame_shape)
+            'proximity': proximity
         }
 
         total = sum(scores[k] * self.weights.get(k, 0) for k in scores)

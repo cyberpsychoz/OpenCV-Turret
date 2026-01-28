@@ -14,6 +14,9 @@ FRAME_SKIP = 2
 WEAPON_MODEL = "models/weights/best.pt"
 WEAPON_CONF = 0.4
 
+DEPTH_MODEL = "MiDaS_small"
+DEPTH_ENABLED = True
+
 THREAT_WEIGHTS = {
     'weapon_detected': 0.45,
     'aggressive_pose': 0.25,
