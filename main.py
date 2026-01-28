@@ -2,9 +2,17 @@ import cv2
 import time
 import argparse
 import logging
+import os
 
 import config
-from pipeline import ThreadedPipeline
+
+# Check if ONNX models exist, use fast pipeline if available
+ONNX_AVAILABLE = os.path.exists("yolov8n.onnx")
+
+if ONNX_AVAILABLE:
+    from fast_pipeline import FastPipeline as Pipeline
+else:
+    from pipeline import ThreadedPipeline as Pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,10 +24,11 @@ log = logging.getLogger(__name__)
 class TurretSystem:
     def __init__(self, use_pose=True, use_weapon=True, use_depth=True, threaded=True):
         log.info("Initializing...")
+        log.info(f"Using {'ONNX/Fast' if ONNX_AVAILABLE else 'Standard'} pipeline")
         self.threaded = threaded
 
         if threaded:
-            self.pipeline = ThreadedPipeline(
+            self.pipeline = Pipeline(
                 use_pose=use_pose,
                 use_weapon=use_weapon,
                 use_depth=use_depth
