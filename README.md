@@ -131,4 +131,4 @@ MIT License. This project is intended for wildlife management and educational pu
 
 ## Contact
 
-Telegram: @terminisles
+Telegram: @gotogrub
