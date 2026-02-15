@@ -1,0 +1,55 @@
+detector:
+  model: yolov8n.pt
+  imgsz: 640
+  confidence: 0.4
+  device: cpu
+  # COCO animal class IDs
+  # 14: bird, 15: cat, 16: dog, 17: horse, 18: sheep
+  # 19: cow, 20: elephant, 21: bear, 22: zebra, 23: giraffe
+  animal_classes: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+
+tracker:
+  type: bytetrack
+  track_high_thresh: 0.5
+  track_low_thresh: 0.1
+  new_track_thresh: 0.6
+  track_buffer: 30
+  match_thresh: 0.8
+
+zones:
+  file: data/zones/zones.json
+
+alerts:
+  cooldown_seconds: 60
+  sound:
+    enabled: true
+    directory: data/sounds
+  desktop:
+    enabled: true
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+
+storage:
+  database: data/db/events.db
+  screenshots:
+    enabled: true
+    directory: data/events
+  clips:
+    enabled: true
+    directory: data/events
+    pre_seconds: 5
+    post_seconds: 10
+
+camera:
+  source: 0
+  width: 1280
+  height: 720
+  fps: 30
+
+display:
+  show_window: true
+  show_fps: true
+  show_zones: true
+  show_tracks: true
