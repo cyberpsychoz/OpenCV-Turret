@@ -10,6 +10,8 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.venv/
+*.egg-info/
 
 # Environment
 .env
@@ -18,6 +20,13 @@ __pycache__/
 output/
 test_videos/
 
+# Data (runtime-generated)
+data/db/
+data/events/
+data/sounds/*.wav
+
+# Models
+*.pt
+
 # Logs
 *.log
-*.txt

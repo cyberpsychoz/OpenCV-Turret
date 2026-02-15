@@ -1,79 +1,134 @@
-# OpenCV-Based Turret  
-[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
+# Wildlife Deterrent Vision System
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](https://opensource.org/licenses/MIT)
-[![Status](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/cyberpsychoz/OpenCV-Turret)
 
-
-> **Version 0.4** — *Added safety control and best target-tracking.*
-
-This is an experimental project for a test turret that detects people wearing bandanas in video streams and can be used as a basis for target identification systems. The code is written in Python using OpenCV.
+Real-time animal detection and deterrent system built on YOLOv8 and OpenCV. Detects wildlife entering user-defined zones, logs events to SQLite, triggers sound/notification alerts, and records video clips.
 
 ## Features
-- **YOLOv8 via Ultralytics**: Accurate person detection  
-- **MediaPipe**: Body keypoint detection for precise head and hand localization  
-- **Color classification**: Detection of bandanas across the entire body  
-- **Kalman Filter**: Target motion prediction  
-- **GPU acceleration**: CUDA support (NVIDIA only)  
-- **Progress bar**: Shows processing percentage  
 
-## Warning
-- **Rough implementation**  
-  Many features need refinement and optimization
+- **YOLOv8n + ByteTrack** -- detection and tracking of 10 animal species (bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe)
+- **Zone monitoring** -- user-drawn polygon zones with per-species filtering and loitering detection
+- **Alert pipeline** -- sound deterrents (pygame), desktop notifications (plyer), Telegram bot; cooldown-based deduplication
+- **Event logging** -- SQLite database with WAL mode, indexed queries by species/zone/time
+- **Clip recording** -- rolling pre-buffer + post-event MP4 recording
+- **Screenshots** -- annotated JPEG snapshots on each event
+- **Analytics** -- per-day/hour/species statistics, position heatmaps, text reports
+- **Multiple sources** -- webcam, video file, RTSP stream (threaded reader)
+- **Interactive zone editor** -- draw protection zones with mouse, saved as JSON
+- **YAML configuration** -- all parameters externalized, no hardcoded values
 
 ## Installation
 
 ```bash
-# Install dependencies
-pip install opencv-python numpy mediapipe ultralytics filterpy rich
+pip install ultralytics opencv-python numpy PyYAML pygame plyer
+```
 
-# For Windows (headless version, no GUI)
-pip install opencv-python-headless numpy mediapipe ultralytics filterpy rich
+For development:
+
+```bash
+pip install pytest pytest-cov
 ```
 
 ## Usage
 
-1. Place test videos into the `test_videos` folder  
-2. Run:
-   ```bash
-   python main.py
-   ```
-3. Processed videos will be saved to the `output` folder
+```bash
+# Run with webcam (default)
+python -m src
 
-## Example Output
+# Run on a video file
+python -m src --source path/to/video.mp4
+
+# Run on RTSP stream
+python -m src --source rtsp://192.168.1.100:554/stream
+
+# Set up protection zones interactively
+python -m src --setup-zones
+
+# Generate event report
+python -m src --report today
+python -m src --report week
+
+# Use custom config
+python -m src --config my_config.yaml
+
+# Verbose logging
+python -m src -v
 ```
-[INFO] Found 2 videos for processing:
-1. test1.mp4
-2. test2.mp4
 
-[INFO] Processing: test1.mp4
-Format: 1280x720, 30 FPS, 900 frames
-[##################################################--------------------------] 67.2% | Elapsed: 00:00:18 | Remaining: 00:00:09
-[INFO] Done: processed_test1.avi | Time taken: 00:00:27
+Press `q` or `ESC` to quit the live view.
+
+## Configuration
+
+Copy `config.example.yaml` to `config.yaml` and edit as needed:
+
+```yaml
+detector:
+  model: yolov8n.pt
+  imgsz: 640
+  confidence: 0.4
+  device: cpu
+  animal_classes: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+
+alerts:
+  cooldown_seconds: 60
+  sound:
+    enabled: true
+  desktop:
+    enabled: true
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+
+camera:
+  source: 0
+  width: 1280
+  height: 720
 ```
 
-## Roadmap
-- [~] Integrate various modules to improve target detection  
-- [ ] Connect to a real turret via Arduino/Raspberry Pi  
-- [~] Improve color classification algorithm  
-- [ ] Add multi-target tracking  
-- [ ] Create a graphical user interface (GUI)  
-- [ ] Support RTSP camera streams  
-- [ ] Test on mobile devices  
+## Project Structure
 
-## Contributing
-All improvements are welcome! To contribute:
-1. Fork the project  
-2. Create a new branch (`git checkout -b feature/god-help`)  
-3. Commit your changes (`git commit -m 'Add some feature'`)  
-4. Push to the branch (`git push origin feature/amazing-feature`)  
-5. Open a Pull Request  
+```
+src/
+  core/
+    models.py          -- Detection, Track, Zone, Event dataclasses
+    detector.py        -- YOLOv8 wrapper, animal class filter
+    tracker.py         -- ByteTrack wrapper, speed calculation
+    zone_manager.py    -- Polygon zones, point-in-polygon, entry/exit/loiter events
+  sources/
+    base.py            -- VideoSource ABC
+    webcam.py, file.py, rtsp.py
+  alerts/
+    alert_manager.py   -- Cooldown, deduplication, routing
+    sound.py, desktop.py, telegram.py
+  storage/
+    event_logger.py    -- SQLite event log
+    clip_recorder.py   -- Rolling buffer to MP4
+    screenshot.py      -- JPEG snapshots
+  analytics/
+    stats.py, heatmap.py, report.py
+  ui/
+    overlay.py         -- Bounding boxes, zones, HUD rendering
+    zone_editor.py     -- Interactive polygon editor
+  pipeline.py          -- Main processing loop
+  app.py               -- CLI entry point
+  __main__.py          -- python -m src
+tests/
+  test_detector.py, test_tracker.py, test_zone_manager.py,
+  test_alert_manager.py, test_event_logger.py
+```
+
+## Testing
+
+```bash
+pytest tests/ -v --cov=src
+```
 
 ## License
-MIT License  
-This project was created for educational purposes only. Do not use it in combat systems.
+
+MIT License. This project is intended for wildlife management and educational purposes.
 
 ## Contact
-- Telegram: @terminisles
 
-### Note for Windows users with AMD GPUs
-OpenCV does not support CUDA on AMD GPUs. The code will automatically switch to CPU mode. For best performance, use a Windows system with an NVIDIA GPU or switch to Linux.
+Telegram: @terminisles
